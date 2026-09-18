@@ -25,7 +25,16 @@ REQUIRED_COLUMNS = [
 ]
 
 OUTPUT_COLUMNS = REQUIRED_COLUMNS.copy()
-PREPROCESS_COLUMNS = ["Title", "Topic", "Domain", "Field", "Concept", "Abstract", "Keyword"]
+PREPROCESS_COLUMNS = [
+    "Title",
+    "Topic",
+    "Domain",
+    "Field",
+    "Concept",
+    "Abstract",
+    "Keyword",
+    "Category",
+]
 
 # Keep domain terms that may also be treated as ordinary short words.
 TECHNICAL_TERMS = {"bert", "cnn", "hpc", "gpu", "nlp", "llm"}
@@ -116,15 +125,22 @@ def preprocess_dataframe(dataframe: pd.DataFrame, lemmatize: bool = False) -> pd
 
 
 def build_preprocessed_dataset(dataframe: pd.DataFrame, lemmatize: bool = False) -> pd.DataFrame:
-    """Create the requested export while preserving the complete paper schema."""
+    """Create the export while preserving source columns and adding combined text."""
     validate_required_columns(dataframe)
     output = dataframe.copy()
 
     for column in PREPROCESS_COLUMNS:
-        output[column] = output[column].fillna("").map(
-            lambda value: clean_text(str(value), lemmatize=lemmatize)
-        )
+        if column in output.columns:
+            output[column] = output[column].fillna("").map(
+                lambda value: clean_text(str(value), lemmatize=lemmatize)
+            )
+
+    output["text"] = (
+        output["Title"].fillna("").astype(str).str.strip()
+        + " "
+        + output["Abstract"].fillna("").astype(str).str.strip()
+    ).str.strip()
 
     output["Top 1% cited"] = output["Top 1% cited"].map(citation_flag)
     output["Top 10% cited"] = output["Top 10% cited"].map(citation_flag)
-    return output[OUTPUT_COLUMNS]
+    return output
