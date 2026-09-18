@@ -1,3 +1,10 @@
 roadmap.txt
+<<<<<<< HEAD
 data/raw_data/
 data/processed_data/
+=======
+data
+processed_data
+*.csv
+*.docx
+>>>>>>> niloy
