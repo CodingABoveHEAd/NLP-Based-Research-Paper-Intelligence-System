@@ -9,6 +9,7 @@ from pathlib import Path
 
 import numpy as np
 from sklearn.linear_model import LogisticRegression
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
@@ -175,39 +176,25 @@ class PaperClassifier:
         self, title: str, abstract: str, category: str, limit: int = 5
     ) -> list[PaperRecommendation]:
         query_text = abstract.strip() or title.strip()
-        try:
-            query_vector = self._word_vector(query_text)[0].astype(np.float64)
-        except ValueError:
-            query_vector = self._word_vector(f"{title.strip()} {abstract.strip()}")[0].astype(np.float64)
-        query_norm = np.linalg.norm(query_vector)
-        if query_norm == 0:
+        if not query_text:
             return []
         category_indices = np.flatnonzero(self.labels == category)
-        abstract_vectors = []
-        valid_indices = []
+        candidate_indices = []
+        candidate_texts = []
         for index in category_indices:
             paper_abstract = (self.paper_rows[int(index)].get("Abstract") or "").strip()
             if not paper_abstract:
-                abstract_vectors.append(self.document_vectors[int(index)])
-                valid_indices.append(index)
                 continue
-            try:
-                abstract_vectors.append(self._word_vector(paper_abstract)[0])
-                valid_indices.append(index)
-            except ValueError:
-                abstract_vectors.append(self.document_vectors[int(index)])
-                valid_indices.append(index)
-        if not abstract_vectors:
+            candidate_indices.append(index)
+            candidate_texts.append(paper_abstract)
+        if not candidate_texts:
             return []
-        category_indices = np.asarray(valid_indices, dtype=np.int64)
-        category_vectors = np.asarray(abstract_vectors, dtype=np.float64)
-        vector_norms = np.linalg.norm(category_vectors, axis=1)
-        similarities = np.divide(
-            category_vectors @ query_vector,
-            vector_norms * query_norm,
-            out=np.zeros(len(category_indices), dtype=np.float64),
-            where=vector_norms != 0,
-        )
+        vectorizer = TfidfVectorizer(stop_words="english", ngram_range=(1, 2), min_df=1)
+        vectors = vectorizer.fit_transform([query_text, *candidate_texts])
+        query_vector = vectors[0]
+        candidate_vectors = vectors[1:]
+        similarities = (candidate_vectors @ query_vector.T).toarray().ravel()
+        candidate_indices = np.asarray(candidate_indices, dtype=np.int64)
         ranked_positions = np.argsort(similarities)[::-1][:limit]
         recommendations = []
         for position in ranked_positions:
