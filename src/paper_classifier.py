@@ -42,6 +42,8 @@ class PaperRecommendation:
     category: str
     similarity: float
     link: str | None
+    citation_count: str
+    cited_status: str
 
 
 def _load_labels() -> np.ndarray:
@@ -205,6 +207,14 @@ class PaperClassifier:
                     category=(row.get("Category") or category).strip(),
                     similarity=float(similarities[position]),
                     link=self._paper_link(row),
+                    citation_count=(row.get("Citation count") or "").strip(),
+                    cited_status=(
+                        "Top 1% cited"
+                        if (row.get("Top 1% cited") or "").strip().lower() in {"1", "yes", "true", "y"}
+                        else "Top 10% cited"
+                        if (row.get("Top 10% cited") or "").strip().lower() in {"1", "yes", "true", "y"}
+                        else ""
+                    ),
                 )
             )
         return recommendations

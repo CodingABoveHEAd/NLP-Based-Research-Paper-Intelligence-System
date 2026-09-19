@@ -69,6 +69,9 @@ def render_recommendations(recommendations) -> None:
     for index, paper in enumerate(recommendations, start=1):
         st.markdown(f"**{index}. {paper.title}**")
         st.write(f"Similarity: {paper.similarity:.1%} · Category: {paper.category}")
+        st.write(f"Cited by: {paper.citation_count}")
+        if paper.cited_status:
+            st.write(paper.cited_status)
         if paper.link:
             st.markdown(f"[Open paper]({paper.link})")
         else:
