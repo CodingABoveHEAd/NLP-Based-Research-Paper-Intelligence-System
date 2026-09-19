@@ -18,6 +18,26 @@ CACHE_PATH = PROJECT_ROOT / "data" / "processed_data" / "distilbert_embeddings.n
 MODEL_NAME = "distilbert-base-uncased"
 
 
+def resolve_dataset_path(explicit_path: Path | None = None) -> Path:
+    """Resolve an explicitly supplied dataset or a known project-local CSV."""
+    if explicit_path is not None:
+        if not explicit_path.exists():
+            raise FileNotFoundError(f"Dataset file was not found: {explicit_path}")
+        return explicit_path
+    candidates = [
+        DATASET_PATH,
+        PROJECT_ROOT / "data" / "processed_data" / "preprocessed_research_papers_with_embeddings_improved.csv",
+        PROJECT_ROOT / "data" / "processed_data" / "preprocessed_research_papers_with_embeddings.csv",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    raise FileNotFoundError(
+        "No dataset CSV found. Run the preprocessing/merge pipeline first, or pass "
+        "the local file explicitly with --data C:\\path\\to\\dataset.csv."
+    )
+
+
 def load_dataset(path: Path, max_rows: int | None = None) -> tuple[list[str], np.ndarray]:
     """Load text and Category labels without reading unrelated CSV columns."""
     texts: list[str] = []
@@ -25,8 +45,10 @@ def load_dataset(path: Path, max_rows: int | None = None) -> tuple[list[str], np
     with path.open("r", encoding="utf-8-sig", newline="") as data_file:
         reader = csv.DictReader(data_file)
         for row in reader:
-            text = (row.get("text") or "").strip()
-            label = (row.get("Category") or "").strip()
+            text = (row.get("text") or row.get("clean_text") or "").strip()
+            if not text:
+                text = f"{row.get('Title') or ''} {row.get('Abstract') or ''}".strip()
+            label = (row.get("Category") or row.get("category") or row.get("Topic") or "").strip()
             if text and label:
                 texts.append(text)
                 labels.append(label)
@@ -111,6 +133,7 @@ def load_or_create_embeddings(
     encoder.to(device)
     print(f"Encoding {len(texts)} documents with batch size {batch_size}", flush=True)
     embeddings = encode_texts(texts, tokenizer, encoder, batch_size, max_length)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(
         cache_path,
         embeddings=embeddings,
@@ -168,15 +191,22 @@ def predict_text(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="BERT embeddings plus built-in logistic regression.")
+    parser.add_argument("--data", type=Path, help="Path to the processed labeled CSV.")
     parser.add_argument("--text", help="Classify one title or abstract after training.")
-    parser.add_argument("--max-rows", type=int, default=2_000, help="Rows used for the demo run.")
+    parser.add_argument(
+        "--max-rows",
+        type=int,
+        default=None,
+        help="Optional row limit. The default uses the complete labeled dataset for fair comparison.",
+    )
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--max-length", type=int, default=256)
     parser.add_argument("--cache", type=Path, default=CACHE_PATH)
     args = parser.parse_args()
 
-    print(f"Loading dataset: {DATASET_PATH}", flush=True)
-    texts, labels = load_dataset(DATASET_PATH, args.max_rows)
+    dataset_path = resolve_dataset_path(args.data)
+    print(f"Loading dataset: {dataset_path}", flush=True)
+    texts, labels = load_dataset(dataset_path, args.max_rows)
     print(f"Loaded {len(labels)} labeled documents", flush=True)
     embeddings = load_or_create_embeddings(
         texts,

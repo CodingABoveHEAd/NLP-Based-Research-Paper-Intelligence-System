@@ -10,7 +10,8 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 from prince_analysis import (  # noqa: E402
-    evaluate_logistic_regression,
+    cosine_recommendations,
+    evaluate_embedding_models,
     keyword_table,
     load_embedding,
     normalize_dataset,
@@ -62,7 +63,7 @@ col1.metric("Papers", f"{len(papers):,}")
 col2.metric("Categories", papers["analysis_category"].nunique())
 col3.metric("With year", int(papers["analysis_year"].notna().sum()))
 
-tab_classify, tab_trends, tab_gaps = st.tabs(["Classify", "Trends & keywords", "Potential gaps"])
+tab_classify, tab_recommend, tab_trends, tab_gaps = st.tabs(["Classify", "Recommend", "Trends & keywords", "Potential gaps"])
 with tab_classify:
     st.subheader("Word2Vec and BERT Logistic Regression")
     artifact_paths = {
@@ -76,25 +77,58 @@ with tab_classify:
         ],
     }
     available = {name: next((path for path in paths if path.exists()), None) for name, paths in artifact_paths.items()}
-    selected = st.selectbox("Embedding model", [name for name, path in available.items() if path is not None] or ["No saved embedding found"])
-    if available.get(selected) is None:
+
+    def read_artifact(path, row_count):
+        if path.suffix == ".npz":
+            values = np.load(path, allow_pickle=False)["embeddings"]
+            if values.shape[0] != row_count:
+                raise ValueError("The saved BERT embeddings do not match the dataset row count.")
+            return values
+        return load_embedding(path, row_count)
+
+    loaded_embeddings = {}
+    for name, path in available.items():
+        if path is not None:
+            try:
+                loaded_embeddings[name] = read_artifact(path, len(papers))
+            except (ValueError, KeyError) as error:
+                st.warning(f"{name} embedding unavailable: {error}")
+
+    if not loaded_embeddings:
         st.info("Run the Word2Vec and BERT notebooks/scripts first. Their saved embedding files will appear here automatically.")
     else:
-        embedding_path = available[selected]
         try:
-            if embedding_path.suffix == ".npz":
-                embeddings = np.load(embedding_path, allow_pickle=False)["embeddings"]
-                if embeddings.shape[0] != len(papers):
-                    raise ValueError("The saved BERT embeddings do not match the uploaded dataset row count.")
-            else:
-                embeddings = load_embedding(embedding_path, len(papers))
-            evaluation = evaluate_logistic_regression(embeddings, papers["analysis_category"])
-            st.metric("Accuracy", f"{evaluation['accuracy']:.3f}")
-            st.dataframe(evaluation["metrics"], use_container_width=True, hide_index=True)
+            comparison, evaluations = evaluate_embedding_models(loaded_embeddings, papers["analysis_category"])
+            st.write("Both models use the same stratified 80/20 split.")
+            st.dataframe(comparison.style.format({"Accuracy": "{:.3f}", "Macro F1": "{:.3f}", "Weighted F1": "{:.3f}"}), use_container_width=True, hide_index=True)
+            selected = st.selectbox("Inspect model", list(evaluations))
+            selected_evaluation = evaluations[selected]
+            st.dataframe(selected_evaluation["metrics"], use_container_width=True, hide_index=True)
             st.write("Confusion matrix")
-            st.dataframe(evaluation["confusion_matrix"], use_container_width=True)
-        except (ValueError, KeyError) as error:
+            st.dataframe(selected_evaluation["confusion_matrix"], use_container_width=True)
+            paper_index = st.number_input("Paper index to classify", min_value=0, max_value=len(papers) - 1, value=0, step=1)
+            paper_vector = loaded_embeddings[selected][int(paper_index)].reshape(1, -1)
+            probabilities = selected_evaluation["model"].predict_proba(paper_vector)[0]
+            prediction = selected_evaluation["model"].classes_[int(np.argmax(probabilities))]
+            st.success(f"Prediction: {prediction}")
+            st.dataframe(pd.DataFrame({"Category": selected_evaluation["model"].classes_, "Probability": probabilities}).style.format({"Probability": "{:.1%}"}), use_container_width=True, hide_index=True)
+        except ValueError as error:
             st.warning(str(error))
+
+with tab_recommend:
+    st.subheader("Similar research papers")
+    available_recommendation_models = list(loaded_embeddings)
+    if not available_recommendation_models:
+        st.info("Run the Word2Vec or BERT embedding pipeline first to enable recommendations.")
+    else:
+        recommendation_model = st.selectbox("Embedding model for similarity", available_recommendation_models)
+        source_index = st.number_input("Source paper index", min_value=0, max_value=len(papers) - 1, value=0, step=1)
+        count = st.slider("Number of recommendations", min_value=3, max_value=10, value=5)
+        source = papers.iloc[int(source_index)]
+        st.write(f"**Source:** {source.get('Title', source.get('analysis_text', 'Selected paper'))}")
+        recommendations = cosine_recommendations(loaded_embeddings[recommendation_model], papers, int(source_index), count)
+        display_columns = [column for column in ["Similarity", "Title", "analysis_category", "Abstract", "DOI"] if column in recommendations]
+        st.dataframe(recommendations[display_columns].style.format({"Similarity": "{:.3f}"}), use_container_width=True, hide_index=True)
 
 with tab_trends:
     st.subheader("Publication patterns")

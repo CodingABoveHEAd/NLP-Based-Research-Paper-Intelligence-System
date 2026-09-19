@@ -11,6 +11,7 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import normalize
 
 TOKEN_PATTERN = re.compile(r"[a-z0-9]+(?:[-'][a-z0-9]+)*")
 CATEGORY_COLUMNS = ("Category", "category", "Topic", "Domain")
@@ -77,6 +78,77 @@ def evaluate_logistic_regression(embeddings: np.ndarray, labels, seed: int = 42)
         "train_count": len(train_y),
         "test_count": len(test_y),
     }
+
+
+def common_split(labels, test_size: float = 0.2, seed: int = 42) -> tuple[np.ndarray, np.ndarray]:
+    """Return one stratified train/test index split reusable by every embedding model."""
+    labels = np.asarray(labels)
+    indices = np.arange(len(labels))
+    train_indices, test_indices = train_test_split(
+        indices, test_size=test_size, random_state=seed, stratify=labels
+    )
+    return train_indices, test_indices
+
+
+def evaluate_embedding_models(
+    embeddings_by_model: dict[str, np.ndarray], labels, test_size: float = 0.2, seed: int = 42
+) -> tuple[pd.DataFrame, dict[str, dict]]:
+    """Compare embedding classifiers using exactly the same train/test indices."""
+    labels = np.asarray(labels)
+    if len(np.unique(labels)) < 2 or pd.Series(labels).value_counts().min() < 2:
+        raise ValueError("Every category needs at least two papers and at least two categories.")
+    train_indices, test_indices = common_split(labels, test_size, seed)
+    results = {}
+    rows = []
+    for name, embeddings in embeddings_by_model.items():
+        if len(embeddings) != len(labels):
+            raise ValueError(f"{name} embedding rows do not match the dataset rows.")
+        model = LogisticRegression(max_iter=1000, class_weight="balanced", solver="lbfgs")
+        model.fit(embeddings[train_indices], labels[train_indices])
+        predictions = model.predict(embeddings[test_indices])
+        report = classification_report(labels[test_indices], predictions, output_dict=True, zero_division=0)
+        classes = np.unique(labels)
+        results[name] = {
+            "model": model,
+            "metrics": pd.DataFrame([
+                {"Category": label, **values} for label, values in report.items() if isinstance(values, dict)
+            ]),
+            "confusion_matrix": pd.DataFrame(
+                confusion_matrix(labels[test_indices], predictions, labels=classes),
+                index=classes,
+                columns=classes,
+            ),
+            "predictions": predictions,
+            "test_indices": test_indices,
+        }
+        rows.append({
+            "Model": name,
+            "Accuracy": accuracy_score(labels[test_indices], predictions),
+            "Macro F1": report["macro avg"]["f1-score"],
+            "Weighted F1": report["weighted avg"]["f1-score"],
+        })
+    return pd.DataFrame(rows).sort_values("Accuracy", ascending=False), results
+
+
+def cosine_recommendations(
+    embeddings: np.ndarray,
+    dataframe: pd.DataFrame,
+    source_index: int,
+    count: int = 5,
+) -> pd.DataFrame:
+    """Return the most similar papers to one selected paper using cosine similarity."""
+    if len(embeddings) != len(dataframe):
+        raise ValueError("Embedding rows do not match the dataset rows.")
+    if source_index < 0 or source_index >= len(dataframe):
+        raise IndexError("The selected paper index is outside the dataset.")
+    matrix = normalize(np.asarray(embeddings, dtype=np.float32))
+    scores = matrix @ matrix[source_index]
+    scores[source_index] = -np.inf
+    result_indices = np.argsort(scores)[::-1][:count]
+    result = dataframe.iloc[result_indices].copy()
+    result.insert(0, "Similarity", scores[result_indices])
+    result.insert(1, "Source index", result_indices)
+    return result
 
 
 def trend_table(dataframe: pd.DataFrame) -> pd.DataFrame:

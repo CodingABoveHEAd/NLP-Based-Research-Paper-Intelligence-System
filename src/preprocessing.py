@@ -120,7 +120,15 @@ def preprocess_dataframe(dataframe: pd.DataFrame, lemmatize: bool = False) -> pd
     )
     processed[["title", "abstract", "clean_text"]] = documents[["title", "abstract", "clean_text"]]
     processed["category"] = processed["Topic"].fillna("").astype(str).str.strip()
-    processed["year"] = pd.NA
+    year_column = next(
+        (column for column in ("year", "Year", "Publication year", "Publication Year", "publication_year") if column in processed),
+        None,
+    )
+    processed["year"] = (
+        pd.to_numeric(processed[year_column], errors="coerce").astype("Int64")
+        if year_column
+        else pd.Series(pd.NA, index=processed.index, dtype="Int64")
+    )
     return processed
 
 
