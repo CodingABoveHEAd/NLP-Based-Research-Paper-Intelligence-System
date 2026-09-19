@@ -124,6 +124,8 @@ For each user input, the application obtains predictions from the available Word
 
 ## Dataset
 
+The dataset was collected from OpenAlex using the OpenAlex web interface and free api.
+
 ### Source files
 
 The raw files are stored in `data/raw_data/`:

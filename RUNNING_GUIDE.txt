@@ -1,0 +1,433 @@
+NLP-BASED RESEARCH PAPER INTELLIGENCE SYSTEM
+RUNNING AND TESTING GUIDE
+============================================
+
+This guide explains how to install, run, and test the project on Windows
+PowerShell.
+
+The repository root is:
+
+D:\4-1\NLP_Lab\NLP-Based-Research-Paper-Intelligence-System
+
+Run all commands from the repository root unless a command says otherwise.
+
+
+1. CHECK THE REPOSITORY
+-----------------------
+
+Open PowerShell and move to the project directory:
+
+    Set-Location "D:\4-1\NLP_Lab\NLP-Based-Research-Paper-Intelligence-System"
+
+Check the current Git state:
+
+    git status
+
+Expected result:
+
+- The current branch should normally be main.
+- The project files should be present.
+- Local notebook or README modifications may appear if you edited them.
+
+Do not delete the processed data files before testing the application. The
+application currently needs these files:
+
+    data\processed_data\preprocessed_research_papers.csv
+    data\processed_data\document_vectors_improved.npy
+    data\processed_data\word2vec_vocabulary.csv
+    data\processed_data\word_vectors_improved.dat
+    data\processed_data\distilbert_embeddings.npz
+
+
+2. CREATE OR ACTIVATE THE VIRTUAL ENVIRONMENT
+---------------------------------------------
+
+If the virtual environment does not exist, create it with uv:
+
+    uv venv .venv
+
+Install the project dependencies:
+
+    uv pip install --python .venv\Scripts\python.exe -r requirements.txt
+
+The requirements include:
+
+- NumPy
+- pandas
+- scikit-learn
+- Streamlit
+- pypdf
+- PyTorch
+- Transformers
+
+Activate the environment in PowerShell:
+
+    .\.venv\Scripts\Activate.ps1
+
+If PowerShell blocks activation scripts, use the project interpreter directly
+instead of activating the environment:
+
+    .\.venv\Scripts\python.exe --version
+
+You should see Python 3.x from the project virtual environment.
+
+If script execution is disabled for the current PowerShell session, run:
+
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+
+Then activate again:
+
+    .\.venv\Scripts\Activate.ps1
+
+
+3. VERIFY PYTHON PACKAGES
+-------------------------
+
+Run this import test:
+
+    .\.venv\Scripts\python.exe -c "import numpy, pandas, sklearn, streamlit, pypdf, torch, transformers; print('All required packages imported successfully')"
+
+Expected output:
+
+    All required packages imported successfully
+
+Check the installed versions if needed:
+
+    .\.venv\Scripts\python.exe -c "import numpy, pandas, sklearn, streamlit, pypdf, torch, transformers; print('numpy', numpy.__version__); print('pandas', pandas.__version__); print('scikit-learn', sklearn.__version__); print('streamlit', streamlit.__version__); print('pypdf', pypdf.__version__); print('torch', torch.__version__); print('transformers', transformers.__version__)"
+
+
+4. VERIFY THE DATASET AND MODEL ARTIFACTS
+-----------------------------------------
+
+Run this quick file check:
+
+    .\.venv\Scripts\python.exe -c "from pathlib import Path; files=['data/processed_data/preprocessed_research_papers.csv','data/processed_data/document_vectors_improved.npy','data/processed_data/word2vec_vocabulary.csv','data/processed_data/word_vectors_improved.dat','data/processed_data/distilbert_embeddings.npz']; missing=[file for file in files if not Path(file).exists()]; print('Missing files:', missing); raise SystemExit(1 if missing else 0)"
+
+Expected output:
+
+    Missing files: []
+
+Check the processed dataset shape and category labels:
+
+    .\.venv\Scripts\python.exe -c "import csv; from collections import Counter; path='data/processed_data/preprocessed_research_papers.csv'; rows=list(csv.DictReader(open(path, encoding='utf-8-sig', newline=''))); print('Rows:', len(rows)); print('Columns:', len(rows[0])); print('Categories:', dict(sorted(Counter(row['Category'].strip() for row in rows).items())))"
+
+Expected values for the current data:
+
+    Rows: 46344
+    Columns: 18
+    Categories: hpc, iot, networks, nlp, security, vision
+
+
+5. RUN THE STREAMLIT APPLICATION
+--------------------------------
+
+Start the application from the repository root:
+
+    .\.venv\Scripts\streamlit.exe run app.py
+
+Streamlit will print a local address. Open this address in a browser. It is
+normally:
+
+    http://localhost:8501
+
+Keep the PowerShell window open while using the application.
+
+To stop the application, return to PowerShell and press:
+
+    Ctrl+C
+
+The first startup can take time because the application loads large Word2Vec
+artifacts and trains the application classifiers from the saved representations.
+The first DistilBERT prediction may also download or load the
+"distilbert-base-uncased" model.
+
+
+6. TEST MANUAL TEXT CLASSIFICATION
+-----------------------------------
+
+In the browser:
+
+1. Select "Write title and abstract".
+2. Enter a title such as:
+
+       Deep Learning Based Intrusion Detection for Internet of Things Networks
+
+3. Enter an abstract such as:
+
+       This paper proposes a neural network method for detecting malicious traffic and cyber attacks in Internet of Things network environments.
+
+4. Select either 3 or 5 related papers.
+5. Click "Classify paper".
+
+A successful result should display:
+
+- A Word2Vec predicted category.
+- A DistilBERT predicted category, if the DistilBERT model is available.
+- A probability for each category.
+- Held-out validation accuracy for each available classifier.
+- A recommended category selected using validation accuracy.
+- Related papers from the selected category.
+- Similarity scores.
+- Citation counts and cited-status labels when available.
+- DOI or paper links when available.
+
+The predicted category can vary because the models are statistical and depend on
+the input text. The important test is that the application returns a result
+without an exception and displays probabilities and recommendations.
+
+
+7. TEST PDF UPLOAD
+------------------
+
+Use a PDF containing selectable text. Scanned image-only PDFs are not supported
+without OCR.
+
+1. Select "Upload PDF".
+2. Choose a research-paper PDF.
+3. Click "Extract text".
+4. Review the extracted title and abstract.
+5. Correct the fields if extraction is imperfect.
+6. Click "Classify paper".
+
+Expected behavior:
+
+- The title and abstract fields are populated when the PDF layout is recognized.
+- The application displays a success message after extraction.
+- Classification works after reviewing the extracted text.
+
+If the PDF is scanned, the application may show:
+
+    No selectable text was found in this PDF
+
+Use an OCR tool to create a text-based PDF before uploading it.
+
+
+8. RUN THE COMMAND-LINE DISTILBERT EMBEDDING CLASSIFIER
+--------------------------------------------------------
+
+This script uses pretrained DistilBERT embeddings followed by scikit-learn
+multiclass logistic regression. It is separate from the notebook's direct
+DistilBERT fine-tuning experiment.
+
+Run the default demo:
+
+    .\.venv\Scripts\python.exe src\bert_classifier.py
+
+Classify custom text after the classifier has trained:
+
+    .\.venv\Scripts\python.exe src\bert_classifier.py --text "A research paper about network intrusion detection"
+
+Run a smaller test to reduce processing time:
+
+    .\.venv\Scripts\python.exe src\bert_classifier.py --max-rows 600 --batch-size 8 --max-length 256
+
+Useful options:
+
+    --text TEXT
+    --max-rows NUMBER
+    --batch-size NUMBER
+    --max-length NUMBER
+    --cache PATH
+
+The script should print the loaded row count, embedding shape, accuracy, and a
+classification report. The first run can be slow because DistilBERT may need to
+be downloaded and embeddings may need to be generated.
+
+
+9. RUN THE WORD2VEC NOTEBOOK
+----------------------------
+
+The Word2Vec notebook trains the manually implemented skip-gram model and creates
+the document-vector artifacts used by the application.
+
+Recommended method in VS Code:
+
+1. Open notebooks\word2vec.ipynb.
+2. Select the .venv Python kernel.
+3. Run the cells from top to bottom.
+4. Wait for each cell to finish before running the next one.
+5. Confirm that the final verification cell prints:
+
+       Verification passed.
+
+The notebook performs these steps:
+
+- Load the processed CSV.
+- Build a vocabulary.
+- Convert documents to token IDs.
+- Generate skip-gram training pairs.
+- Train with positive and negative word pairs.
+- Save word_vectors_improved.dat and word_vectors_improved.dat.out.
+- Average word vectors into document_vectors_improved.npy.
+- Save the vocabulary CSV and embeddings CSV.
+- Verify vector dimensions and finite values.
+
+The training loop can take a long time on CPU. Do not close the notebook while
+training is running.
+
+Optional command-line syntax, if Jupyter is installed:
+
+    .\.venv\Scripts\python.exe -m jupyter notebook notebooks\word2vec.ipynb
+
+
+10. RUN THE LOGISTIC REGRESSION NOTEBOOK
+----------------------------------------
+
+Recommended method in VS Code:
+
+1. Open notebooks\logistic_regression.ipynb.
+2. Select the .venv Python kernel.
+3. Run the cells from top to bottom.
+4. Complete the manual Word2Vec softmax section first.
+5. Enter sample text when the notebook asks for input.
+6. Run the DistilBERT section separately if you want to fine-tune DistilBERT.
+
+The notebook contains two different classifier experiments:
+
+A. Manual Word2Vec plus softmax logistic regression
+
+- Loads document_vectors.npy.
+- Splits the data into training and testing sets.
+- Standardizes features using training data only.
+- Trains a six-class softmax model.
+- Prints accuracy, precision, recall, and F1 score.
+- Prints normalized class probabilities for custom text.
+
+B. Direct DistilBERT fine-tuning
+
+- Uses a balanced subset of up to 600 papers.
+- Uses distilbert-base-uncased.
+- Uses a six-logit classification head.
+- Trains for the configured number of epochs.
+- Prints loss, accuracy, and a classification report.
+- Uses softmax probabilities for custom predictions.
+
+A successful DistilBERT fine-tuning run can show a warning that the classifier
+head weights are newly initialized. This is expected: the head is new and is
+being trained for the six project categories.
+
+
+11. QUICK PYTHON SMOKE TEST
+---------------------------
+
+Run this syntax check over the main Python files:
+
+    .\.venv\Scripts\python.exe -m py_compile app.py src\bert_classifier.py src\paper_classifier.py src\preprocessing.py
+
+No output means that Python syntax compilation succeeded.
+
+Run a lightweight module import test:
+
+    .\.venv\Scripts\python.exe -c "import app; from src import bert_classifier, paper_classifier, preprocessing; print('Project modules imported successfully')"
+
+Expected output:
+
+    Project modules imported successfully
+
+Importing app may initialize Streamlit messages in some environments. That is
+normal; use the Streamlit command in Section 5 for the real application test.
+
+
+12. CHECK NOTEBOOK JSON AND PYTHON SYNTAX
+-----------------------------------------
+
+Run this validation command:
+
+    .\.venv\Scripts\python.exe -c "import ast, json; from pathlib import Path; paths=['notebooks/word2vec.ipynb','notebooks/logistic_regression.ipynb']; [ast.parse(''.join(cell.get('source', []))) for path in paths for cell in json.loads(Path(path).read_text(encoding='utf-8'))['cells'] if cell.get('cell_type') == 'code']; print('Notebook JSON and Python syntax are valid')"
+
+Expected output:
+
+    Notebook JSON and Python syntax are valid
+
+
+13. TROUBLESHOOTING
+-------------------
+
+ERROR: ModuleNotFoundError
+
+Fix:
+
+    uv pip install --python .venv\Scripts\python.exe -r requirements.txt
+
+Then rerun the command with .venv\Scripts\python.exe.
+
+
+ERROR: A required artifact is missing
+
+Fix:
+
+- Confirm that the file exists under data\processed_data.
+- Run notebooks\word2vec.ipynb from top to bottom to regenerate Word2Vec files.
+- Regenerate DistilBERT embeddings with src\bert_classifier.py if the cache is missing.
+- Do not mix old vectors with a newly reordered processed CSV.
+
+
+ERROR: No words from the input were found in the Word2Vec vocabulary
+
+Fix:
+
+- Enter a longer title or abstract.
+- Use ordinary English or technical research terms.
+- Confirm that word2vec_vocabulary.csv and word_vectors_improved.dat belong to the same training run.
+
+
+ERROR: DistilBERT download or connection failure
+
+Fix:
+
+- Check the internet connection.
+- Run the command again after the Hugging Face model download completes.
+- Confirm that the local Hugging Face cache has enough disk space.
+- Test the Word2Vec classifier while DistilBERT is unavailable.
+
+
+ERROR: PDF extraction returns no text
+
+Fix:
+
+- Use a PDF with selectable text.
+- Run OCR on a scanned PDF.
+- Try another paper PDF.
+
+
+ERROR: Streamlit port is already in use
+
+Fix by selecting another port:
+
+    .\.venv\Scripts\streamlit.exe run app.py --server.port 8502
+
+Then open:
+
+    http://localhost:8502
+
+
+14. MINIMUM ACCEPTANCE CHECKLIST
+--------------------------------
+
+The project is running correctly when all of these checks pass:
+
+[ ] The virtual environment exists and required packages import.
+[ ] The five application artifact files exist.
+[ ] The Streamlit page opens in a browser.
+[ ] Manual title and abstract classification returns results.
+[ ] Category probabilities are displayed.
+[ ] Related-paper recommendations are displayed.
+[ ] A selectable-text PDF can be extracted and classified.
+[ ] The Word2Vec notebook finishes with "Verification passed.".
+[ ] The logistic regression notebook prints evaluation metrics.
+[ ] The notebook JSON and Python syntax check passes.
+
+
+15. STOP COMMANDS
+------------------
+
+Stop Streamlit:
+
+    Ctrl+C
+
+Deactivate the virtual environment:
+
+    deactivate
+
+The project files and generated model artifacts are not deleted by these
+commands.
