@@ -171,13 +171,36 @@ class PaperClassifier:
                 return value if value.lower().startswith("http") else f"https://{value}"
         return None
 
-    def recommend(self, text: str, category: str, limit: int = 5) -> list[PaperRecommendation]:
-        query_vector = self._word_vector(text)[0].astype(np.float64)
+    def recommend(
+        self, title: str, abstract: str, category: str, limit: int = 5
+    ) -> list[PaperRecommendation]:
+        query_text = abstract.strip() or title.strip()
+        try:
+            query_vector = self._word_vector(query_text)[0].astype(np.float64)
+        except ValueError:
+            query_vector = self._word_vector(f"{title.strip()} {abstract.strip()}")[0].astype(np.float64)
         query_norm = np.linalg.norm(query_vector)
         if query_norm == 0:
             return []
         category_indices = np.flatnonzero(self.labels == category)
-        category_vectors = self.document_vectors[category_indices].astype(np.float64)
+        abstract_vectors = []
+        valid_indices = []
+        for index in category_indices:
+            paper_abstract = (self.paper_rows[int(index)].get("Abstract") or "").strip()
+            if not paper_abstract:
+                abstract_vectors.append(self.document_vectors[int(index)])
+                valid_indices.append(index)
+                continue
+            try:
+                abstract_vectors.append(self._word_vector(paper_abstract)[0])
+                valid_indices.append(index)
+            except ValueError:
+                abstract_vectors.append(self.document_vectors[int(index)])
+                valid_indices.append(index)
+        if not abstract_vectors:
+            return []
+        category_indices = np.asarray(valid_indices, dtype=np.int64)
+        category_vectors = np.asarray(abstract_vectors, dtype=np.float64)
         vector_norms = np.linalg.norm(category_vectors, axis=1)
         similarities = np.divide(
             category_vectors @ query_vector,

@@ -110,17 +110,14 @@ if st.button("Classify paper", type="primary", use_container_width=True):
                 results = classifier.predict(query)
             available_results = [result for result in results if result.available]
             best_result = max(available_results, key=lambda result: result.validation_accuracy)
-            st.success(
-                f"Recommended category: {best_result.prediction} ({best_result.name}, "
-                f"{best_result.validation_accuracy:.1%} validation accuracy)"
-            )
+            st.success(f"Recommended category: {best_result.prediction}")
             st.caption("The recommended model is selected by held-out dataset accuracy.")
             columns = st.columns(len(results))
             for column, result in zip(columns, results):
                 with column:
                     render_result(result)
             recommendations = classifier.recommend(
-                query, best_result.prediction, limit=recommendation_count
+                title, abstract, best_result.prediction, limit=recommendation_count
             )
             if recommendations:
                 render_recommendations(recommendations)
