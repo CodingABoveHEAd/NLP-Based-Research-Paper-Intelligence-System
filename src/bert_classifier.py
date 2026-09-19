@@ -95,8 +95,7 @@ def load_or_create_embeddings(
 ) -> np.ndarray:
     """Load cached BERT vectors or download the encoder and create them."""
     import torch
-    from transformers.models.distilbert.modeling_distilbert import DistilBertModel
-    from transformers.models.distilbert.tokenization_distilbert_fast import DistilBertTokenizerFast
+    from transformers import AutoModel, AutoTokenizer
 
     if cache_path.exists():
         print(f"Loading cached embeddings: {cache_path}", flush=True)
@@ -105,8 +104,8 @@ def load_or_create_embeddings(
             return cached["embeddings"]
 
     print(f"Loading pretrained model: {model_name}", flush=True)
-    tokenizer = DistilBertTokenizerFast.from_pretrained(model_name)
-    encoder = DistilBertModel.from_pretrained(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    encoder = AutoModel.from_pretrained(model_name)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     encoder.to(device)
     print(f"Encoding {len(texts)} documents with batch size {batch_size}", flush=True)
@@ -193,11 +192,10 @@ def main() -> None:
 
     if args.text:
         import torch
-        from transformers.models.distilbert.modeling_distilbert import DistilBertModel
-        from transformers.models.distilbert.tokenization_distilbert_fast import DistilBertTokenizerFast
+        from transformers import AutoModel, AutoTokenizer
 
-        tokenizer = DistilBertTokenizerFast.from_pretrained(MODEL_NAME)
-        encoder = DistilBertModel.from_pretrained(MODEL_NAME)
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+        encoder = AutoModel.from_pretrained(MODEL_NAME)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         encoder.to(device)
         predict_text(args.text, classifier, tokenizer, encoder)
