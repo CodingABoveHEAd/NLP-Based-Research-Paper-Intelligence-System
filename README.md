@@ -356,13 +356,13 @@ Recommendations are generated after classification:
 TF-IDF assigns a weight to term $t$ in document $d$ using:
 
 $$
-\operatorname{tfidf}(t,d)=\operatorname{tf}(t,d)\times\log\left(\frac{1+N}{1+\operatorname{df}(t)}\right)+1
+\mathit{tfidf}(t,d)=\mathit{tf}(t,d)\times\log\left(\frac{1+N}{1+\mathit{df}(t)}\right)+1
 $$
 
 The cosine similarity of query vector $\mathbf{q}$ and paper vector $\mathbf{p}$ is:
 
 $$
-\operatorname{cos}(\mathbf{q},\mathbf{p}) = \frac{\mathbf{q}\cdot\mathbf{p}}{\|\mathbf{q}\|_2\|\mathbf{p}\|_2}
+\mathit{cos}(\mathbf{q},\mathbf{p}) = \frac{\mathbf{q}\cdot\mathbf{p}}{\|\mathbf{q}\|_2\|\mathbf{p}\|_2}
 $$
 
 Category filtering reduces the search space and improves topical focus. It does not itself increase a similarity score. A high score indicates lexical or phrase overlap in the TF-IDF representation; it is not proof of citation, methodological equivalence, or scientific quality.
