@@ -233,6 +233,5 @@ Useful options include `--max-rows`, `--batch-size`, `--max-length`, and `--cach
 
 The classifier split uses a fixed random seed of `42`. The saved embeddings, vocabulary artifacts, processed dataset row order, and dataset labels must remain aligned for inference and recommendations to remain valid.
 
-## License
-
-See [LICENSE](LICENSE) for the project license.
+Github repo link :
+CodingABoveHEAd/NLP-Based-Research-Paper-Intelligence-System
