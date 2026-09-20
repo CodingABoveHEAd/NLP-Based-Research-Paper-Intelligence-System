@@ -174,50 +174,7 @@ class PaperClassifier:
                 return value if value.lower().startswith("http") else f"https://{value}"
         return None
 
-    def recommend(
-        self, title: str, abstract: str, category: str, limit: int = 5
-    ) -> list[PaperRecommendation]:
-        query_text = abstract.strip() or title.strip()
-        if not query_text:
-            return []
-        category_indices = np.flatnonzero(self.labels == category)
-        candidate_indices = []
-        candidate_texts = []
-        for index in category_indices:
-            paper_abstract = (self.paper_rows[int(index)].get("Abstract") or "").strip()
-            if not paper_abstract:
-                continue
-            candidate_indices.append(index)
-            candidate_texts.append(paper_abstract)
-        if not candidate_texts:
-            return []
-        vectorizer = TfidfVectorizer(stop_words="english", ngram_range=(1, 2), min_df=1)
-        vectors = vectorizer.fit_transform([query_text, *candidate_texts])
-        query_vector = vectors[0]
-        candidate_vectors = vectors[1:]
-        similarities = (candidate_vectors @ query_vector.T).toarray().ravel()
-        candidate_indices = np.asarray(candidate_indices, dtype=np.int64)
-        ranked_positions = np.argsort(similarities)[::-1][:limit]
-        recommendations = []
-        for position in ranked_positions:
-            row = self.paper_rows[int(category_indices[position])]
-            recommendations.append(
-                PaperRecommendation(
-                    title=(row.get("Title") or "Untitled paper").strip(),
-                    category=(row.get("Category") or category).strip(),
-                    similarity=float(similarities[position]),
-                    link=self._paper_link(row),
-                    citation_count=(row.get("Citation count") or "").strip(),
-                    cited_status=(
-                        "Top 1% cited"
-                        if (row.get("Top 1% cited") or "").strip().lower() in {"1", "yes", "true", "y"}
-                        else "Top 10% cited"
-                        if (row.get("Top 10% cited") or "").strip().lower() in {"1", "yes", "true", "y"}
-                        else ""
-                    ),
-                )
-            )
-        return recommendations
+    
 
     def _bert_vector(self, text: str) -> np.ndarray:
         if self.tokenizer is None or self.encoder is None:
